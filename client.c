@@ -40,9 +40,6 @@ int init_socket(Socket* sck) {
     memset(&sck->sock_info, 0, sizeof(sck->sock_info));
 
     sck->sock_info.sin_family = AF_INET;
-
-    printf("Socket initialized!\n");
-
     return 0;
 }
 
@@ -51,14 +48,16 @@ int init_socket(Socket* sck) {
 int connect_socket(Socket* sck, const char* ip_address, uint16_t port) {
     
     sck->sock_info.sin_port = htons(port);
-    inet_pton(AF_INET, ip_address, &sck->sock_info.sin_addr);
+    if (inet_pton(AF_INET, ip_address, &sck->sock_info.sin_addr) <= 0) {
+        perror("Invalid IP address");
+        exit(EXIT_FAILURE);
+    }
+
     
     if(connect(sck->sockfd, (struct sockaddr*) &sck->sock_info, sizeof(sck->sock_info)) < 0) {
         perror("Socket failed to connect!");
         exit(EXIT_FAILURE);
     }
-    
-    printf("Socket connected successfully!\n");
     return 0;
 }
 
@@ -94,7 +93,6 @@ void disconnect_client(Client* client) {
     Socket* sck = &client->socket;
 
     close_socket(sck);
-    client = NULL;
 }
 
 
@@ -102,6 +100,8 @@ int read_message(Client* client, char buffer[], size_t buffer_size) {
     if(client == NULL) { perror("Client not initialized!"); return -1; }
 
     Socket* sck = &client->socket;
+
+    if(buffer_size == 0) return 0;
 
     int bytes_read = recv(sck->sockfd, buffer, buffer_size - 1, 0);
 
@@ -114,34 +114,45 @@ int read_message(Client* client, char buffer[], size_t buffer_size) {
 
 
 int write_message(Client* client, const char buffer[]) {
-    if(client == NULL) { perror("Client not initialized!"); exit(EXIT_FAILURE); }
+
+    if(client == NULL) {
+        perror("Client not initialized!\n");
+        exit(EXIT_FAILURE);
+    }
 
     size_t buf_len = strlen(buffer);
+
     if(buf_len == 0) return 0;
 
-    char temp[BUFFER_SIZE] = {0};
-    
-    size_t username_len = strlen(client->username);
-    
-    memcpy(temp, client->username, username_len);
-    
-    temp[username_len++] = ':';
-    temp[username_len++] = ' ';
-    size_t space = sizeof(temp) - username_len - 1; //Remaining space
-    
-    if (buf_len > space) buf_len = space;
-    memcpy(temp + username_len, buffer, buf_len);
-    
-    int total_len = username_len + buf_len;
-    temp[total_len] = '\0';
+    char message[BUFFER_SIZE] = {0};
+
+    size_t usrname_len = strlen(client->username);
+
+    memcpy(message, client->username, usrname_len);
+
+    message[usrname_len++] = ':';
+    message[usrname_len++] = ' ';
+
+    size_t space = sizeof(message) - usrname_len - 1;
+
+    if(buf_len > space) buf_len = space;
+
+    memcpy(message + usrname_len, buffer, buf_len);
+
+    size_t total_len = usrname_len + buf_len;
+
+    message[total_len] = '\0';
 
     Socket* sck = &client->socket;
 
-    int bytes_sent = send(sck->sockfd, temp, total_len, 0);
+    int bytes_sent = send(sck->sockfd, message, total_len, 0);
 
-    if(bytes_sent < 0) { perror("Error while sending message"); exit(EXIT_FAILURE); }
-    
+    if(bytes_sent < 0) {
+        perror("Error while sending message!"); 
+        exit(EXIT_FAILURE);
+    }
     return bytes_sent;
+
 }
 
 
@@ -151,7 +162,16 @@ int main(int argc, char* argv[]) {
 
     char buffer[BUFFER_SIZE] = {0};
 
-    init_client(&client, SERVER_IP, PORT, "Baris");
+    char ip_v4_address[16] = {0};
+
+    if(argc != 4) {
+
+        fprintf(stderr, "Usage: ./client <ip_v4_address> <port> <username>\n");
+        return -1;
+    }
+
+
+    init_client(&client, argv[1], atoi(argv[2]), argv[3]);
 
     // printf("Client Socket File Descriptor: %d\n", client.socket.sockfd);
     // printf("Client IPv4 Address: %s\n", client.ip_v4_address);
