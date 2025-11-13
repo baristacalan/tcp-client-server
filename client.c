@@ -66,6 +66,7 @@ void init_client(Client* client, const char* ip_address, uint16_t port, const ch
     strncpy(client->username, username, sizeof(client->username));
     strncpy(client->ip_v4_address, ip_address, sizeof(client->ip_v4_address));
     client->username[sizeof(client->username) - 1] = '\0';
+    client->ip_v4_address[sizeof(client->ip_v4_address) - 1] = '\0';
 
     client->port = port;
 
