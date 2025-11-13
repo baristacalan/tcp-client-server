@@ -30,7 +30,7 @@ typedef struct Client {
 }Client;
 
 
-int init_socket(struct Socket* sck) {
+int init_socket(Socket* sck) {
 
     if((sck->sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Socket failed to initialize!");
@@ -48,7 +48,7 @@ int init_socket(struct Socket* sck) {
 
 
 
-int connect_socket(struct Socket* sck, const char* ip_address, uint16_t port) {
+int connect_socket(Socket* sck, const char* ip_address, uint16_t port) {
     
     sck->sock_info.sin_port = htons(port);
     inet_pton(AF_INET, ip_address, &sck->sock_info.sin_addr);
@@ -62,12 +62,11 @@ int connect_socket(struct Socket* sck, const char* ip_address, uint16_t port) {
     return 0;
 }
 
-void init_client(struct Client* client, const char* ip_address, uint16_t port, const char* username) {
+void init_client(Client* client, const char* ip_address, uint16_t port, const char* username) {
 
-    strncpy(client->username, username, sizeof(client->username) - 1);
+    strncpy(client->username, username, sizeof(client->username));
     strncpy(client->ip_v4_address, ip_address, sizeof(client->ip_v4_address));
     client->username[sizeof(client->username) - 1] = '\0';
-
 
     client->port = port;
 
@@ -75,7 +74,7 @@ void init_client(struct Client* client, const char* ip_address, uint16_t port, c
     connect_socket(&client->socket, client->ip_v4_address, client->port);
 }
 
-int close_socket(struct Socket* sck) {
+int close_socket(Socket* sck) {
 
     if(close(sck->sockfd) < 0) {
         perror("Socket failed to be closed!");
@@ -85,7 +84,7 @@ int close_socket(struct Socket* sck) {
     return 0;
 }
 
-void disconnect_client(struct Client* client) {
+void disconnect_client(Client* client) {
 
     if(client == NULL) {
         perror("Client not initialized!");
@@ -99,7 +98,7 @@ void disconnect_client(struct Client* client) {
 }
 
 
-int read_message(struct Client* client, char buffer[], size_t buffer_size) {
+int read_message(Client* client, char buffer[], size_t buffer_size) {
     if(client == NULL) { perror("Client not initialized!"); return -1; }
 
     Socket* sck = &client->socket;
@@ -114,26 +113,26 @@ int read_message(struct Client* client, char buffer[], size_t buffer_size) {
 }
 
 
-int write_message(struct Client* client, const char buffer[]) {
+int write_message(Client* client, const char buffer[]) {
     if(client == NULL) { perror("Client not initialized!"); exit(EXIT_FAILURE); }
 
-    int len = strlen(buffer);
-    if(len == 0) return 0;
+    size_t buf_len = strlen(buffer);
+    if(buf_len == 0) return 0;
 
     char temp[BUFFER_SIZE] = {0};
     
-    int username_len = (int)strlen(client->username);
+    size_t username_len = strlen(client->username);
     
-    memcpy(temp, client->username, (size_t)username_len);
+    memcpy(temp, client->username, username_len);
     
     temp[username_len++] = ':';
     temp[username_len++] = ' ';
-    int space = (int)sizeof(temp) - username_len - 1; //Remaining space
+    size_t space = sizeof(temp) - username_len - 1; //Remaining space
     
-    if (len > space) len = space;
-    memcpy(temp + username_len, buffer, (size_t)len);
+    if (buf_len > space) buf_len = space;
+    memcpy(temp + username_len, buffer, buf_len);
     
-    int total_len = username_len + len;
+    int total_len = username_len + buf_len;
     temp[total_len] = '\0';
 
     Socket* sck = &client->socket;
@@ -141,6 +140,7 @@ int write_message(struct Client* client, const char buffer[]) {
     int bytes_sent = send(sck->sockfd, temp, total_len, 0);
 
     if(bytes_sent < 0) { perror("Error while sending message"); exit(EXIT_FAILURE); }
+    
     return bytes_sent;
 }
 
@@ -199,7 +199,6 @@ int main(int argc, char* argv[]) {
 
         //For write
         if(pfd[1].revents & POLLIN) {
-            //printf("> "); fflush(stdout);
             if(!fgets(buffer, sizeof(buffer), stdin)) break;
 
             if(strncmp(buffer, "/exit", 5) == 0) break;
